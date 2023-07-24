@@ -1,11 +1,13 @@
 package middlewaresUsecases
 
 import (
+	"github.com/connapotae/hydro-shop/modules/middlewares"
 	"github.com/connapotae/hydro-shop/modules/middlewares/middlewaresRepositories"
 )
 
 type IMiddlewaresUsecase interface {
 	FindAccessToken(userId, accessToken string) bool
+	FindRole() ([]*middlewares.Role, error)
 }
 
 type middlewaresUsecase struct {
@@ -20,4 +22,12 @@ func MiddlewaresUsecase(middlewaresRepository middlewaresRepositories.IMiddlewar
 
 func (u *middlewaresUsecase) FindAccessToken(userId, accessToken string) bool {
 	return u.middlewaresRepository.FindAccessToken(userId, accessToken)
+}
+
+func (u *middlewaresUsecase) FindRole() ([]*middlewares.Role, error) {
+	roles, err := u.middlewaresRepository.FindRole()
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
 }
