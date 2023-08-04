@@ -99,7 +99,7 @@ func (h *usesHandler) SignUpAdmin(c *fiber.Ctx) error {
 	}
 
 	//Insert
-	result, err := h.usersUsecase.InsertCustomer(req)
+	result, err := h.usersUsecase.InsertAdmin(req)
 	if err != nil {
 		return entities.NewResponse(c).Error(
 			fiber.ErrInternalServerError.Code,

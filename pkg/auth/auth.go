@@ -29,6 +29,10 @@ type admin struct {
 	*auth
 }
 
+type apiKey struct {
+	*auth
+}
+
 type mapClaims struct {
 	Claims *users.UserClaims `json:"claims"`
 	jwt.RegisteredClaims
@@ -39,6 +43,10 @@ type IAuth interface {
 }
 
 type IAdmin interface {
+	SignToken() string
+}
+
+type IApiKey interface {
 	SignToken() string
 }
 
@@ -59,6 +67,12 @@ func (a *auth) SignToken() string {
 func (a *admin) SignToken() string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, a.mapClaims)
 	ss, _ := token.SignedString(a.cfg.AdminKey())
+	return ss
+}
+
+func (a *apiKey) SignToken() string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, a.mapClaims)
+	ss, _ := token.SignedString(a.cfg.ApiKey())
 	return ss
 }
 
@@ -110,6 +124,30 @@ func ParseAdminToken(cfg config.IJwtConfig, tokenString string) (*mapClaims, err
 	}
 }
 
+func ParseApiKey(cfg config.IJwtConfig, tokenString string) (*mapClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &mapClaims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("signning method is invalid")
+		}
+		return cfg.ApiKey(), nil
+	})
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenMalformed) {
+			return nil, fmt.Errorf("token format in invalid")
+		} else if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, fmt.Errorf("token had expired")
+		} else {
+			return nil, fmt.Errorf("parse token failed: %v", err)
+		}
+	}
+
+	if claims, ok := token.Claims.(*mapClaims); ok {
+		return claims, nil
+	} else {
+		return nil, fmt.Errorf("claims type is invalid")
+	}
+}
+
 func RepeatToken(cfg config.IJwtConfig, claims *users.UserClaims, exp int64) string {
 	obj := &auth{
 		cfg: cfg,
@@ -136,6 +174,8 @@ func NewAuth(tokenType TokenType, cfg config.IJwtConfig, claims *users.UserClaim
 		return newRefreshToken(cfg, claims), nil
 	case Admin:
 		return newAdminToken(cfg), nil
+	case ApiKey:
+		return newApikey(cfg), nil
 	default:
 		return nil, fmt.Errorf("unknow token type")
 	}
@@ -186,6 +226,25 @@ func newAdminToken(cfg config.IJwtConfig) IAdmin {
 					Subject:   "admin-token",
 					Audience:  []string{"admin"},
 					ExpiresAt: jwtTimeDurationCal(300),
+					NotBefore: jwt.NewNumericDate(time.Now()),
+					IssuedAt:  jwt.NewNumericDate(time.Now()),
+				},
+			},
+		},
+	}
+}
+
+func newApikey(cfg config.IJwtConfig) IApiKey {
+	return &apiKey{
+		&auth{
+			cfg: cfg,
+			mapClaims: &mapClaims{
+				Claims: nil,
+				RegisteredClaims: jwt.RegisteredClaims{
+					Issuer:    "hydro-shop-api",
+					Subject:   "api-key",
+					Audience:  []string{"customer", "admin"},
+					ExpiresAt: jwt.NewNumericDate(time.Now().AddDate(2, 0, 0)),
 					NotBefore: jwt.NewNumericDate(time.Now()),
 					IssuedAt:  jwt.NewNumericDate(time.Now()),
 				},
